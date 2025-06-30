@@ -1,0 +1,47 @@
+# 这个工作流的名称，会显示在 GitHub Actions 页面
+name: Sync browserless/chrome to My ACR
+
+# 触发工作流的条件
+on:
+  # 1. 当有代码推送到 main 分支时触发 (例如，你创建或修改这个文件时)
+  push:
+    branches: ["main"]
+  # 2. 定时任务：每天北京时间早上 8 点自动运行一次
+  schedule:
+    - cron: '0 0 * * *'  # 这是 UTC 时间的 0 点
+
+# 定义具体的工作任务
+jobs:
+  sync-images:
+    # 指定运行环境为最新的 Ubuntu 系统
+    runs-on: ubuntu-latest
+    
+    # 定义任务的每一个步骤
+    steps:
+      # 第一步：检出当前仓库的代码（虽然我们用不到代码，但这是标准流程）
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 第二步：设置 Docker Buildx 环境，这是 docker/login-action 需要的
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2.9.1
+
+      # 第三步：登录到你的阿里云个人版 ACR
+      # 这里使用了你在 GitHub Secrets 中设置的用户名和密码
+      - name: Login to Alibaba Cloud Personal ACR
+        uses: docker/login-action@v2.2.0
+        with:
+          # 你的个人版 ACR 实例地址
+          registry: crpi-7p9pej2rxzfmniwc.cn-hangzhou.personal.cr.aliyuncs.com
+          # 你的 ACR 用户名，从 Secrets 读取
+          username: ${{ secrets.DOCKER_USERNAME }}
+          # 你的 ACR 密码，从 Secrets 读取
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 第四步：使用 skopeo 工具同步镜像
+      # skopeo copy 命令可以直接将一个镜像从源复制到目标，无需先 pull 再 push
+      - name: Sync browserless/chrome Image
+        run: |
+          skopeo copy \
+            docker://docker.io/browserless/chrome:latest \
+            docker://crpi-7p9pej2rxzfmniwc.cn-hangzhou.personal.cr.aliyuncs.com/micochen/browserless-chrome:latest
